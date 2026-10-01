@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://khane-bazar-118.ir/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://khane-bazar-118.ir/search</loc><changefreq>hourly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://khane-bazar-118.ir/category/real-estate</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://khane-bazar-118.ir/category/rent</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://khane-bazar-118.ir/category/vehicles</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://khane-bazar-118.ir/blog</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://khane-bazar-118.ir/blog/guide-buying-first-home</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://khane-bazar-118.ir/blog/tehran-neighborhoods-2026</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://khane-bazar-118.ir/blog/mortgage-guide-iran</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://khane-bazar-118.ir/app</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://khane-bazar-118.ir/about</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://khane-bazar-118.ir/contact</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://khane-bazar-118.ir/faq</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://khane-bazar-118.ir/terms</loc><changefreq>yearly</changefreq><priority>0.4</priority></url>
+</urlset>
