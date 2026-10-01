@@ -14,6 +14,10 @@ export default defineConfig({
   // (optional chaining, nullish coalescing, class fields, nested CSS are all
   // downleveled). Runtime API polyfills live in src/polyfills.ts.
   build: { target: "es2015" },
+  server: {
+    host: "0.0.0.0",
+    allowedHosts: true,
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),

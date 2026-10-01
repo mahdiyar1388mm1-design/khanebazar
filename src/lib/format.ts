@@ -50,8 +50,11 @@ export function formatPhone(phone: string, mask = false): string {
   return toFa(en);
 }
 
-export function getListingPriceDetails(listing: { price: number; priceType: string; fields?: Record<string, any> }) {
-  const area = Number(listing.fields?.area || listing.fields?.building_area || listing.fields?.land_area || 0);
+export function getListingPriceDetails(listing: { price: number; priceType: string; fields?: Record<string, any> | string }) {
+  const fields = typeof listing.fields === "string"
+    ? (() => { try { return JSON.parse(listing.fields || "{}"); } catch { return {}; } })()
+    : (listing.fields || {});
+  const area = Number(fields?.area || fields?.building_area || fields?.land_area || 0);
   const totalPrice = listing.price || 0;
   const pricePerMeter = (area > 0 && totalPrice > 0) ? Math.round(totalPrice / area) : 0;
 

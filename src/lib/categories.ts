@@ -234,6 +234,17 @@ export function findSubBySlug(subSlug: string) {
 
 // برچسب فارسی برای کلیدهایی که ممکن است در تعریف دسته‌ها نباشند
 const FALLBACK_FIELD_LABELS: Record<string, string> = {
+  area: "متراژ",
+  rooms: "تعداد اتاق خواب",
+  bathrooms: "تعداد سرویس بهداشتی",
+  floor: "طبقه",
+  elevator: "آسانسور",
+  parking: "پارکینگ",
+  storage: "انباری",
+  furnished: "مبله",
+  amenities: "امکانات",
+  condition: "وضعیت",
+  deed_type: "نوع سند",
   monthly_rent: "اجاره ماهیانه (تومان)",
   deposit: "ودیعه / رهن (تومان)",
   rent_mode: "نوع اجاره",
@@ -253,6 +264,25 @@ const FALLBACK_FIELD_LABELS: Record<string, string> = {
   body_condition: "وضعیت بدنه",
   land_use: "کاربری",
   payment_terms: "شرایط پرداخت",
+  access: "دسترسی",
+  utilities: "امکانات",
+  progress: "پیشرفت پروژه",
+  capacity: "ظرفیت",
+  rules: "قوانین",
+  brand: "برند",
+  model: "مدل",
+  year: "سال تولید",
+  mileage: "کارکرد",
+  transmission: "گیربکس",
+  fuel: "سوخت",
+  insurance: "بیمه تا",
+  inspection: "معاینه فنی",
+  doors: "تعداد درب",
+  options: "امکانات",
+  type: "نوع",
+  length: "طول",
+  pool: "استخر",
+  yard: "حیاط",
 };
 
 function prettifyFieldKey(key: string): string {
@@ -265,6 +295,18 @@ function inferFieldType(v: unknown): CategoryField["type"] {
   if (typeof v === "number") return "number";
   if (Array.isArray(v)) return "multiselect";
   return "text";
+}
+
+/**
+ * آیا مقدار یک فیلد واقعاً توسط کاربر پر شده است؟
+ * false برای فیلدهای بله/خیر مقدار معتبر محسوب می‌شود، اما آرایه‌ی خالی یا
+ * رشته‌ی خالی نباید در صفحه آگهی به‌عنوان «مشخصات» نمایش داده شود.
+ */
+export function fieldValueIsFilled(v: unknown): boolean {
+  if (v === undefined || v === null) return false;
+  if (typeof v === "string") return v.trim() !== "";
+  if (Array.isArray(v)) return v.some(fieldValueIsFilled);
+  return true;
 }
 
 /** فهرست فیلدهای همه‌ی زیردسته‌ها (برای پیدا کردن برچسب/واحد یک کلید) */
@@ -290,11 +332,13 @@ function allFieldDefs(): CategoryField[] {
  */
 export function inferSubFromFields(
   categorySlug: string,
-  fields: Record<string, any> | undefined
+  fields: Record<string, any> | string | undefined
 ): SubCategory | null {
-  const keys = Object.keys(fields || {}).filter(
-    (k) => fields && fields[k] !== undefined && fields[k] !== null && fields[k] !== ""
-  );
+  if (typeof fields === "string") {
+    try { fields = JSON.parse(fields); } catch { fields = undefined; }
+  }
+  if (!fields || typeof fields !== "object" || Array.isArray(fields)) fields = undefined;
+  const keys = Object.keys(fields || {}).filter((k) => fields && fieldValueIsFilled(fields[k]));
   if (!keys.length) return null;
   const cat = getCategory(categorySlug);
   const candidates = cat ? cat.subs : CATEGORIES.flatMap((c) => c.subs);
@@ -319,15 +363,21 @@ export function inferSubFromFields(
 export function resolveListingFields(listing: {
   categorySlug?: string;
   subSlug?: string;
-  fields?: Record<string, any>;
+  fields?: Record<string, any> | string;
 }): { sub: SubCategory | null; fields: CategoryField[] } {
-  const values = listing.fields || {};
-  const present = Object.keys(values).filter(
-    (k) => values[k] !== undefined && values[k] !== null && values[k] !== ""
-  );
+  const rawValues = listing.fields || {};
+  const parsedValues = typeof rawValues === "string"
+    ? (() => { try { return JSON.parse(rawValues); } catch { return {}; } })()
+    : rawValues;
+  const values: Record<string, any> = parsedValues && typeof parsedValues === "object" && !Array.isArray(parsedValues)
+    ? parsedValues
+    : {};
+  const present = Object.keys(values).filter((k) => fieldValueIsFilled(values[k]));
   if (!present.length) return { sub: null, fields: [] };
 
-  const declared = listing.subSlug ? findSubBySlug(listing.subSlug)?.sub ?? null : null;
+  const declared = listing.subSlug
+    ? (listing.categorySlug ? getSubCategory(listing.categorySlug, listing.subSlug) : null) ?? findSubBySlug(listing.subSlug)?.sub ?? null
+    : null;
   const sub = declared || inferSubFromFields(listing.categorySlug || "", values);
 
   const defs: CategoryField[] = [];

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { findOrCreateConversation, useListingState, useListingsState, incrementViews, sendMessage, toggleFavorite, useCurrentUser, useFavorites } from "../lib/store";
-import { findSubBySlug, getCategory, resolveListingFields } from "../lib/categories";
-import { formatPhone, formatPrice, timeAgo, toFa, getListingPriceDetails } from "../lib/format";
-import { Camera, Chat, Copy, Eye, Heart, Phone, Pin, Share, X, Calendar, Tag, AlertTriangle } from "../components/Icons";
+import { fieldValueIsFilled, findSubBySlug, getCategory, resolveListingFields } from "../lib/categories";
+import { formatNumber, formatPhone, formatPrice, timeAgo, toFa, toEn, getListingPriceDetails } from "../lib/format";
+import { Camera, Chat, Check, Copy, Eye, Heart, Phone, Pin, Share, X, Calendar, Tag, AlertTriangle } from "../components/Icons";
+import type { CategoryField, Listing } from "../lib/types";
 import { Link } from "../lib/Link";
 import { navigate } from "../lib/router";
 import { ListingCard } from "../components/ListingCard";
@@ -12,6 +13,117 @@ import { toast } from "../components/Toast";
 import { copyText } from "../utils/clipboard";
 import { MapView } from "../components/MapView";
 import { SEOHead } from "../components/SEOHead";
+
+type DisplayField = { field: CategoryField; value: any };
+
+const HIGHLIGHT_FIELD_PRIORITY = [
+  "area", "building_area", "land_area", "rooms", "floor", "brand", "model", "year", "mileage",
+  "capacity", "rent_mode", "rent_type", "parking", "elevator", "deed_type", "body_condition",
+];
+
+function getListingFieldValues(listing: Pick<Listing, "fields"> | { fields?: any }): Record<string, any> {
+  const raw = listing.fields;
+  if (!raw) return {};
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+}
+
+function cleanFieldLabel(label: string): string {
+  return label
+    .replace(/\s*[—-]\s*برای.+$/g, "")
+    .replace(/\s*\(تومان\)\s*/g, "")
+    .trim();
+}
+
+function isMoneyField(field: CategoryField): boolean {
+  return /(price|rent|deposit)/i.test(field.key) || /تومان/.test(field.label);
+}
+
+function isYearField(key: string): boolean {
+  return /(^|_)year$/.test(key) || key === "year_built" || key === "delivery_year";
+}
+
+function parseNumberish(value: any): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
+  const en = toEn(value).replace(/[\s,٬،]/g, "");
+  if (!/^\d+(\.\d+)?$/.test(en)) return null;
+  const n = Number(en);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatMoneyAmount(value: number): string {
+  if (value === 0) return "۰ تومان";
+  return formatPrice(value, true);
+}
+
+function formatFieldText(field: CategoryField, value: any): string {
+  if (typeof value === "boolean") return value ? "دارد" : "ندارد";
+  if (Array.isArray(value)) return value.filter(fieldValueIsFilled).map((v) => toFa(String(v))).join("، ");
+  const n = parseNumberish(value);
+  if (n !== null) {
+    if (isMoneyField(field)) return formatMoneyAmount(n);
+    const shouldGroup = Math.abs(n) >= 10000 || /(mileage|km|engine_cc)/i.test(field.key);
+    const base = isYearField(field.key)
+      ? toFa(String(Math.round(n)))
+      : shouldGroup
+        ? formatNumber(n)
+        : toFa(String(n));
+    return `${base}${field.unit ? ` ${field.unit}` : ""}`;
+  }
+  return toFa(String(value));
+}
+
+function getFieldIcon(field: CategoryField): string {
+  const key = field.key;
+  if (/(area|building|land|floor|rooms|bathrooms)/.test(key)) return "🏠";
+  if (/(price|rent|deposit)/.test(key)) return "💰";
+  if (/(parking|elevator|storage|pool|yard|amenities|utilities|options)/.test(key)) return "✨";
+  if (/(brand|model|year|mileage|fuel|transmission|engine|body|doors)/.test(key)) return "🚗";
+  if (/(deed|land_use|access|condition|progress|payment)/.test(key)) return "📋";
+  if (/(capacity|rules)/.test(key)) return "👥";
+  return field.type === "boolean" ? "✓" : "•";
+}
+
+function buildDisplayFields(defs: CategoryField[], values: Record<string, any>): DisplayField[] {
+  return defs
+    .map((field) => ({ field, value: values[field.key] }))
+    .filter((item) => fieldValueIsFilled(item.value));
+}
+
+function buildHighlightFields(items: DisplayField[]): DisplayField[] {
+  const ordered = [...items].sort((a, b) => {
+    const ai = HIGHLIGHT_FIELD_PRIORITY.indexOf(a.field.key);
+    const bi = HIGHLIGHT_FIELD_PRIORITY.indexOf(b.field.key);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+  return ordered.slice(0, 4);
+}
+
+function getRentPriceRows(listing: Listing, values: Record<string, any>) {
+  const depositValue = fieldValueIsFilled(values.deposit)
+    ? values.deposit
+    : listing.price > 0 ? listing.price : undefined;
+  const candidates = [
+    { key: "deposit", label: "رهن / ودیعه", value: depositValue },
+    { key: "monthly_rent", label: "اجاره ماهیانه", value: values.monthly_rent },
+    { key: "daily_price", label: "اجاره روزانه", value: values.daily_price },
+    { key: "weekly_price", label: "اجاره هفتگی", value: values.weekly_price },
+    { key: "monthly_price", label: "اجاره ماهیانه", value: values.monthly_price },
+  ];
+  const rows = candidates
+    .map((row) => ({ ...row, amount: parseNumberish(row.value) }))
+    .filter((row) => row.amount !== null && fieldValueIsFilled(row.value));
+  if (!rows.length && listing.price > 0) rows.push({ key: "price", label: "قیمت", value: listing.price, amount: listing.price });
+  return rows;
+}
 
 export function ListingDetailPage({ id }: { id: string }) {
   const { listings: all, loading: listLoading } = useListingsState();
@@ -67,6 +179,9 @@ export function ListingDetailPage({ id }: { id: string }) {
   // مشخصات آگهی: اگر زیردسته ثبت نشده باشد، تعریف فیلدها از روی کلیدهای خود
   // آگهی استنباط می‌شود تا بخش «مشخصات» خالی نماند.
   const resolvedFields = resolveListingFields(listing);
+  const fieldValues = getListingFieldValues(listing);
+  const specItems = buildDisplayFields(resolvedFields.fields, fieldValues);
+  const highlightItems = buildHighlightFields(specItems);
   const displaySub = subInfo?.sub ?? resolvedFields.sub;
   const breadcrumbCat = subInfo?.cat ?? (listing.categorySlug ? getCategory(listing.categorySlug) : undefined);
   const seller = { id: listing.userId, name: (listing as any).userName || "کاربر", phone: (listing as any).userPhone || "", createdAt: listing.createdAt };
@@ -242,30 +357,7 @@ export function ListingDetailPage({ id }: { id: string }) {
           {/* Title + price (mobile) */}
           <div className="md:hidden bg-white rounded-2xl border border-slate-200 mt-4 p-4">
             <h1 className="font-extrabold text-lg text-slate-800 mb-2 leading-7">{listing.title}</h1>
-            {(() => {
-              const { area, totalPrice, pricePerMeter } = getListingPriceDetails(listing);
-              return (
-                <div className="text-blue-600 font-extrabold text-xl mb-3 flex flex-col gap-1">
-                  {listing.categorySlug === "rent" ? (
-                    <>
-                      <span>رهن: {formatPrice(listing.price)}</span>
-                      <span className="text-sm font-bold text-slate-700">اجاره ماهیانه: {Number(listing.fields?.monthly_rent) > 0 ? formatPrice(Number(listing.fields?.monthly_rent)) : "—"}</span>
-                    </>
-                  ) : listing.priceType === "negotiable" ? (
-                    <span>توافقی</span>
-                  ) : (
-                    <>
-                      <span>قیمت کل: {formatPrice(totalPrice, listing.categorySlug === "vehicles")}</span>
-                      {area > 0 && pricePerMeter > 0 && (
-                        <span className="text-xs text-slate-500 font-normal">
-                          قیمت هر متر: {formatPrice(pricePerMeter)}
-                        </span>
-                      )}
-                    </>
-                  )}
-                </div>
-              );
-            })()}
+            <PriceBlock listing={listing} values={fieldValues} compact />
             <Meta listing={listing} />
           </div>
 
@@ -286,27 +378,31 @@ export function ListingDetailPage({ id }: { id: string }) {
             </button>
           </div>
 
-          {/* Specs */}
-          {resolvedFields.fields.length > 0 && (
-            <Section title="مشخصات">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {resolvedFields.fields.map((field) => {
-                  const v = listing.fields[field.key];
-                  if (v === undefined || v === "" || v === null) return null;
-                  let display: string;
-                  if (typeof v === "boolean") display = v ? "دارد" : "ندارد";
-                  else if (Array.isArray(v)) display = v.length ? v.join("، ") : "—";
-                  else display = String(v);
-                  return (
-                    <div key={field.key} className="p-3 bg-slate-50 rounded-lg">
-                      <div className="text-xs text-slate-500 mb-1">{field.label}</div>
-                      <div className="font-semibold text-sm text-slate-800">
-                        {display === "—" ? "—" : (typeof v === "number" ? toFa(v.toString()) : display)}
-                        {field.unit && typeof v === "number" && <span className="text-xs text-slate-500 mr-1">{field.unit}</span>}
-                      </div>
+          {/* Key highlights */}
+          {highlightItems.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+              {highlightItems.map(({ field, value }) => (
+                <div key={field.key} className="relative overflow-hidden rounded-2xl border border-[var(--stone-light)] bg-[var(--card-bg)] p-3 shadow-sm">
+                  <div className="absolute -left-5 -top-6 w-16 h-16 rounded-full bg-[var(--gold)]/10" />
+                  <div className="relative flex items-center gap-2">
+                    <span className="w-9 h-9 rounded-xl grid place-items-center text-lg bg-[var(--cream-dark)] border border-[var(--stone-light)]">{getFieldIcon(field)}</span>
+                    <div className="min-w-0">
+                      <div className="text-[11px] text-[var(--text-light)] truncate">{cleanFieldLabel(field.label)}</div>
+                      <div className="text-sm font-extrabold text-[var(--royal-blue)] truncate">{formatFieldText(field, value)}</div>
                     </div>
-                  );
-                })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Specs */}
+          {specItems.length > 0 && (
+            <Section title={`مشخصات کامل (${toFa(specItems.length)} مورد)`}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                {specItems.map(({ field, value }) => (
+                  <SpecCard key={field.key} field={field} value={value} />
+                ))}
               </div>
             </Section>
           )}
@@ -358,30 +454,7 @@ export function ListingDetailPage({ id }: { id: string }) {
         <aside className="space-y-4">
           <div className="hidden md:block bg-white rounded-2xl border border-slate-200 p-5">
             <h1 className="font-extrabold text-lg text-slate-800 mb-2 leading-7">{listing.title}</h1>
-            {(() => {
-              const { area, totalPrice, pricePerMeter } = getListingPriceDetails(listing);
-              return (
-                <div className="text-blue-600 font-extrabold text-2xl mb-3 flex flex-col gap-1">
-                  {listing.categorySlug === "rent" ? (
-                    <>
-                      <span>رهن: {formatPrice(listing.price)}</span>
-                      <span className="text-sm font-bold text-slate-700">اجاره ماهیانه: {Number(listing.fields?.monthly_rent) > 0 ? formatPrice(Number(listing.fields?.monthly_rent)) : "—"}</span>
-                    </>
-                  ) : listing.priceType === "negotiable" ? (
-                    <span>توافقی</span>
-                  ) : (
-                    <>
-                      <span>قیمت کل: {formatPrice(totalPrice, listing.categorySlug === "vehicles")}</span>
-                      {area > 0 && pricePerMeter > 0 && (
-                        <span className="text-xs text-slate-500 font-normal">
-                          قیمت هر متر: {formatPrice(pricePerMeter)}
-                        </span>
-                      )}
-                    </>
-                  )}
-                </div>
-              );
-            })()}
+            <PriceBlock listing={listing} values={fieldValues} />
             <Meta listing={listing} />
           </div>
 
@@ -481,10 +554,89 @@ export function ListingDetailPage({ id }: { id: string }) {
   );
 }
 
+function PriceBlock({ listing, values, compact = false }: { listing: Listing; values: Record<string, any>; compact?: boolean }) {
+  if (listing.categorySlug === "rent") {
+    const rows = getRentPriceRows(listing, values);
+    return (
+      <div className={`${compact ? "mb-3" : "mb-4"} space-y-2`}>
+        {rows.length ? rows.map((row) => (
+          <div key={row.key} className="rounded-2xl border border-[var(--stone-light)] bg-gradient-to-l from-[var(--cream)] to-white p-3">
+            <div className="text-[11px] font-semibold text-[var(--text-light)] mb-1">{row.label}</div>
+            <div className={`${compact ? "text-lg" : "text-xl"} font-extrabold text-[var(--gold-dark)] fa-num`}>
+              {formatMoneyAmount(row.amount ?? 0)}
+            </div>
+          </div>
+        )) : (
+          <div className={`${compact ? "text-lg" : "text-2xl"} font-extrabold text-[var(--gold-dark)] mb-3`}>توافقی</div>
+        )}
+      </div>
+    );
+  }
+
+  const { area, totalPrice, pricePerMeter } = getListingPriceDetails(listing);
+  return (
+    <div className={`${compact ? "text-xl" : "text-2xl"} mb-3 flex flex-col gap-1 text-[var(--gold-dark)] font-extrabold`}>
+      {listing.priceType === "negotiable" ? (
+        <span>توافقی</span>
+      ) : (
+        <>
+          <span>قیمت کل: {formatPrice(totalPrice, listing.categorySlug === "vehicles")}</span>
+          {area > 0 && pricePerMeter > 0 && (
+            <span className="text-xs text-[var(--text-light)] font-normal">
+              قیمت هر متر: {formatPrice(pricePerMeter)}
+            </span>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function SpecCard({ field, value }: DisplayField) {
+  const isBool = typeof value === "boolean";
+  const isList = Array.isArray(value);
+  const listValues = isList ? value.filter(fieldValueIsFilled) : [];
+
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border border-[var(--stone-light)] bg-gradient-to-br from-white to-[var(--cream)] p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--gold)] hover:shadow-md">
+      <div className="absolute -left-8 -bottom-8 w-24 h-24 rounded-full bg-[var(--gold)]/10 transition group-hover:bg-[var(--gold)]/15" />
+      <div className="relative flex items-start gap-3">
+        <div className="w-10 h-10 shrink-0 rounded-2xl grid place-items-center text-lg bg-[var(--cream-dark)] border border-[var(--stone-light)]">
+          {getFieldIcon(field)}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-semibold text-[var(--text-light)] mb-1">{cleanFieldLabel(field.label)}</div>
+          {isBool ? (
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-extrabold ${value ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+              {value ? <Check size={13} /> : <X size={13} />}
+              {value ? "دارد" : "ندارد"}
+            </span>
+          ) : isList ? (
+            <div className="flex flex-wrap gap-1.5">
+              {listValues.map((item: any) => (
+                <span key={String(item)} className="px-2.5 py-1 rounded-full bg-white/80 border border-[var(--stone-light)] text-xs font-bold text-[var(--royal-blue)]">
+                  {toFa(String(item))}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm md:text-[15px] font-extrabold leading-7 text-[var(--royal-blue)] break-words fa-num">
+              {formatFieldText(field, value)}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Section(props: { title: string; children: any }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 mt-4 p-5">
-      <h2 className="font-bold text-slate-800 mb-4">{props.title}</h2>
+    <div className="bg-[var(--card-bg)] rounded-3xl border border-[var(--stone-light)] mt-4 p-5 shadow-sm">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="w-1.5 h-7 rounded-full bg-[var(--gold)]" />
+        <h2 className="font-extrabold text-[var(--royal-blue)]">{props.title}</h2>
+      </div>
       {props.children}
     </div>
   );
