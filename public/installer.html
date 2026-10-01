@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>خانه بازار - Installer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Tahoma, Arial, sans-serif; }
+        body { background: linear-gradient(135deg, #1A2744, #243556); color: #FAF6EE; min-height: 100vh; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { text-align: center; color: #C8A951; margin-bottom: 30px; font-size: 28px; }
+        .step { background: rgba(255,255,255,0.05); border: 1px solid #C8A951; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        .step-title { color: #C8A951; font-size: 20px; margin-bottom: 15px; font-weight: bold; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: #FAF6EE; font-size: 14px; }
+        input, textarea, select { width: 100%; padding: 10px; border: 1px solid #D4C5A9; border-radius: 5px; background: rgba(255,255,255,0.1); color: #FAF6EE; font-size: 14px; }
+        input:focus, textarea:focus { outline: none; border-color: #C8A951; background: rgba(255,255,255,0.15); }
+        button { background: #C8A951; color: #1A2744; border: none; padding: 12px 30px; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; margin: 5px; transition: all 0.3s; }
+        button:hover { background: #E0CC7E; transform: translateY(-2px); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .code-block { background: #0F1A2E; padding: 15px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 13px; overflow-x: auto; margin: 10px 0; border: 1px solid #D4C5A9; }
+        .hidden { display: none; }
+        .progress { display: flex; justify-content: space-between; margin-bottom: 30px; padding: 0 20px; }
+        .progress-step { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.1); border: 2px solid #D4C5A9; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all 0.3s; }
+        .progress-step.active { background: #C8A951; border-color: #C8A951; color: #1A2744; font-weight: bold; }
+        .progress-step.done { background: #40916C; border-color: #40916C; color: white; }
+        .success { color: #40916C; font-weight: bold; }
+        .warning { color: #F59E0B; }
+        .error { color: #EF4444; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏛️ خانه بازار - نصب خودکار</h1>
+        
+        <div class="progress">
+            <div class="progress-step active" id="step1-indicator">۱</div>
+            <div class="progress-step" id="step2-indicator">۲</div>
+            <div class="progress-step" id="step3-indicator">۳</div>
+            <div class="progress-step" id="step4-indicator">۴</div>
+            <div class="progress-step" id="step5-indicator">۵</div>
+        </div>
+
+        <!-- Step 1: Database -->
+        <div class="step" id="step1">
+            <div class="step-title">۱. اطلاعات دیتابیس</div>
+            <p style="margin-bottom: 15px; color: #D4C5A9;">در cPanel به MySQL Databases بروید و دیتابیس + کاربر بسازید</p>
+            
+            <div class="form-group">
+                <label>نام دیتابیس:</label>
+                <input type="text" id="db-name" value="kb_118" placeholder="kb_118">
+            </div>
+            <div class="form-group">
+                <label>نام کاربری دیتابیس:</label>
+                <input type="text" id="db-user" value="kb_user" placeholder="kb_user">
+            </div>
+            <div class="form-group">
+                <label>رمز عبور دیتابیس:</label>
+                <input type="password" id="db-pass" placeholder="رمز قوی وارد کنید">
+            </div>
+            
+            <button onclick="nextStep(1)">مرحله بعد ←</button>
+        </div>
+
+        <!-- Step 2: API Keys -->
+        <div class="step hidden" id="step2">
+            <div class="step-title">۲. کلیدهای API</div>
+            
+            <div class="form-group">
+                <label>کد درگاه زرین‌پال (36 کاراکتر):</label>
+                <input type="text" id="zarinpal-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+            </div>
+            <div class="form-group">
+                <label>API Key کاوه‌نگار (SMS):</label>
+                <input type="text" id="kavenegar-key" value="2F646E48706F684A783065516839476B5A495242336D6C6661535A6B51496E377A544676693567515752453D">
+            </div>
+            <div class="form-group">
+                <label>شماره فرستنده کاوه‌نگار:</label>
+                <input type="text" id="kavenegar-sender" value="2000660110">
+            </div>
+            <p style="color:#666;font-size:14px;">🗺️ نقشه از OpenStreetMap استفاده می‌کند — رایگان و بدون نیاز به کلید API.</p>
+
+            <button onclick="prevStep(2)">→ مرحله قبل</button>
+            <button onclick="nextStep(2)">مرحله بعد ←</button>
+        </div>
+
+        <!-- Step 3: Generate Files -->
+        <div class="step hidden" id="step3">
+            <div class="step-title">۳. تولید فایل‌های پیکربندی</div>
+            
+            <div id="generated-files" style="margin: 20px 0;">
+                <div class="form-group">
+                    <label>📄 فایل .env برای سرور Node.js:</label>
+                    <textarea id="server-env" rows="12" readonly style="direction: ltr;"></textarea>
+                    <button onclick="downloadFile('server-env', '.env.server')" style="margin-top: 5px;">⬇️ دانلود فایل</button>
+                </div>
+                
+                <div class="form-group">
+                    <label>📄 فایل .env برای فرانت‌اند:</label>
+                    <textarea id="frontend-env" rows="8" readonly style="direction: ltr;"></textarea>
+                    <button onclick="downloadFile('frontend-env', '.env')" style="margin-top: 5px;">⬇️ دانلود فایل</button>
+                </div>
+            </div>
+            
+            <button onclick="prevStep(3)">→ مرحله قبل</button>
+            <button onclick="generateCommands()">تولید دستورات نصب ←</button>
+        </div>
+
+        <!-- Step 4: Installation Commands -->
+        <div class="step hidden" id="step4">
+            <div class="step-title">۴. دستورات نصب در cPanel Terminal</div>
+            
+            <div class="form-group">
+                <label>📋 دستورهای کامل نصب (کپی کنید و در ترمینال cPanel اجرا کنید):</label>
+                <textarea id="install-commands" rows="20" readonly style="direction: ltr; font-size: 12px;"></textarea>
+                <button onclick="copyToClipboard('install-commands')" style="margin-top: 5px;">📋 کپی تمام دستورات</button>
+            </div>
+            
+            <div style="margin-top: 20px; padding: 15px; background: rgba(200,169,81,0.1); border-radius: 5px;">
+                <p class="warning">⚠️ مراحل اجرا:</p>
+                <ol style="margin-top: 10px; padding-right: 20px; line-height: 2;">
+                    <li>وارد <strong>cPanel → Terminal</strong> شوید</li>
+                    <li>تمام دستورات بالا را کپی و در ترمینال پیست کنید</li>
+                    <li>Enter بزنید و منتظر بمانید</li>
+                    <li>پس از اتمام، سایت شما در <strong id="final-domain">khane-bazar-118.ir</strong> قابل دسترسی خواهد بود</li>
+                </ol>
+            </div>
+            
+            <button onclick="prevStep(4)">→ مرحله قبل</button>
+            <button onclick="nextStep(4)">پایان ←</button>
+        </div>
+
+        <!-- Step 5: Completion -->
+        <div class="step hidden" id="step5">
+            <div class="step-title">🎉 نصب تکمیل شد!</div>
+            
+            <div style="text-align: center; padding: 30px;">
+                <p style="font-size: 18px; margin-bottom: 20px;" class="success">
+                    ✅ خانه بازار با موفقیت نصب شد!
+                </p>
+                
+                <div style="background: rgba(200,169,81,0.1); padding: 20px; border-radius: 10px; margin: 20px 0;">
+                    <p style="font-size: 16px; margin-bottom: 10px;">🌐 آدرس سایت شما:</p>
+                    <p style="font-size: 24px; color: #C8A951; font-weight: bold;" id="site-url">https://khane-bazar-118.ir</p>
+                    
+                    <p style="font-size: 16px; margin: 20px 0 10px;">🔌 آدرس API:</p>
+                    <p style="font-size: 24px; color: #C8A951; font-weight: bold;" id="api-url">https://api.khane-bazar-118.ir</p>
+                </div>
+                
+                <div style="margin-top: 30px;">
+                    <p class="warning">📝 نکات مهم:</p>
+                    <ul style="text-align: right; margin-top: 15px; padding-right: 20px; line-height: 2;">
+                        <li>SSL را در cPanel → SSL/TLS Status فعال کنید</li>
+                        <li>DNS دامنه را به IP هاست تنظیم کنید</li>
+                        <li>برای مدیریت سرور: <code>pm2 status</code></li>
+                        <li>لاگ‌ها: <code>pm2 logs khane-bazar-api</code></li>
+                    </ul>
+                </div>
+                
+                <button onclick="location.reload()" style="margin-top: 30px;">🔄 شروع مجدد</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        const totalSteps = 5;
+
+        function updateProgress() {
+            for (let i = 1; i <= totalSteps; i++) {
+                const indicator = document.getElementById(`step${i}-indicator`);
+                indicator.classList.remove('active', 'done');
+                if (i < currentStep) indicator.classList.add('done');
+                else if (i === currentStep) indicator.classList.add('active');
+            }
+        }
+
+        function showStep(step) {
+            document.querySelectorAll('.step').forEach(s => s.classList.add('hidden'));
+            document.getElementById(`step${step}`).classList.remove('hidden');
+            currentStep = step;
+            updateProgress();
+        }
+
+        function nextStep(step) {
+            if (step === 1) {
+                const dbPass = document.getElementById('db-pass').value;
+                if (!dbPass) { alert('رمز دیتابیس را وارد کنید'); return; }
+            }
+            if (step === 2) {
+                const zarinpalId = document.getElementById('zarinpal-id').value;
+                if (!zarinpalId || zarinpalId.length !== 36) { alert('کد زرین‌پال باید ۳۶ کاراکتر باشد'); return; }
+                generateEnvFiles();
+            }
+            showStep(step + 1);
+        }
+
+        function prevStep(step) {
+            showStep(step - 1);
+        }
+
+        function generateEnvFiles() {
+            const dbName = document.getElementById('db-name').value;
+            const dbUser = document.getElementById('db-user').value;
+            const dbPass = document.getElementById('db-pass').value;
+            const zarinpalId = document.getElementById('zarinpal-id').value;
+            const kavenegarKey = document.getElementById('kavenegar-key').value;
+            const kavenegarSender = document.getElementById('kavenegar-sender').value;
+
+            const serverEnv = `PORT=3000
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=${dbName}
+DB_USERNAME=${dbUser}
+DB_PASSWORD=${dbPass}
+ZARINPAL_MERCHANT_ID=${zarinpalId}
+KAVENEGAR_API_KEY=${kavenegarKey}
+KAVENEGAR_SENDER=${kavenegarSender}
+NODE_ENV=production`;
+
+            const frontendEnv = `VITE_API_BASE_URL=https://api.khane-bazar-118.ir
+VITE_PAYMENT_GATEWAY=zarinpal`;
+
+            document.getElementById('server-env').value = serverEnv;
+            document.getElementById('frontend-env').value = frontendEnv;
+        }
+
+        function generateCommands() {
+            const dbName = document.getElementById('db-name').value;
+            const dbUser = document.getElementById('db-user').value;
+            const dbPass = document.getElementById('db-pass').value;
+
+            const commands = `# نصب خانه بازار - دستورات کامل
+# این دستورات را در cPanel Terminal اجرا کنید
+
+# ۱. رفتن به پوشه home
+cd ~
+
+# ۲. ساخت پوشه پروژه
+mkdir -p khane-bazar-api
+cd khane-bazar-api
+
+# ۳. آپلود فایل‌های سرور (server.cjs و package.json را اینجا بگذارید)
+# از File Manager استفاده کنید
+
+# ۴. نصب پکیج‌های Node.js
+npm install
+
+# ۵. ساخت دیتابیس MySQL
+mysql -e "CREATE DATABASE IF NOT EXISTS ${dbName} CHARACTER SET utf8mb4 COLLATE utf8mb4_persian_ci;"
+mysql -e "CREATE USER IF NOT EXISTS '${dbUser}'@'localhost' IDENTIFIED BY '${dbPass}';"
+mysql -e "GRANT ALL PRIVILEGES ON ${dbName}.* TO '${dbUser}'@'localhost';"
+mysql -e "FLUSH PRIVILEGES;"
+
+# ۶. Import اسکیمای SQL (اگر فایل schema.sql را آپلود کرده‌اید)
+mysql -u ${dbUser} -p${dbPass} ${dbName} < ../public_html/database/schema.sql
+
+# ۷. راه‌اندازی با PM2
+pm2 start server.cjs --name khane-bazar-api
+pm2 save
+
+# ۸. تست API
+curl https://api.khane-bazar-118.ir/api/health
+
+# ✅ تمام! سایت شما آماده است`;
+
+            document.getElementById('install-commands').value = commands;
+        }
+
+        function downloadFile(elementId, filename) {
+            const content = document.getElementById(elementId).value;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            alert(`فایل ${filename} دانلود شد`);
+        }
+
+        function copyToClipboard(elementId) {
+            const textarea = document.getElementById(elementId);
+            textarea.select();
+            document.execCommand('copy');
+            alert('دستورات کپی شدند! حالا در ترمینال cPanel پیست کنید');
+        }
+    </script>
+</body>
+</html>

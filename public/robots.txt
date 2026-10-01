@@ -1,0 +1,23 @@
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://khane-bazar-118.ir/sitemap.xml
+
+# Private / non-indexable paths
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /my-listings
+Disallow: /messages
+Disallow: /notifications
+Disallow: /settings
+Disallow: /login
+Disallow: /config
+Disallow: /api/
+
+# Crawl rate for major bots
+User-agent: Googlebot
+Crawl-delay: 1
+
+User-agent: Bingbot
+Crawl-delay: 1
